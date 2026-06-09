@@ -14,6 +14,7 @@ register_tools(mcp)
 # Register custom routes
 register_routes(mcp)
 
+# Add skills provider (serving skills from the local "skills" directory)
 mcp.add_provider(SkillsDirectoryProvider(roots= Path.cwd() / "src" / "evs_server" / "skills"))
 
 if __name__ == "__main__":

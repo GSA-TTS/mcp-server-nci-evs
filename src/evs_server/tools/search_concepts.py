@@ -39,7 +39,10 @@ def register(mcp: FastMCP) -> None:
         type: Annotated[SearchType, "The match type for the search."] = SearchType.CONTAINS,
         include: Annotated[Include, "The level of detail to return."] = Include.MINIMAL,
         conceptStatus: Annotated[ConceptStatus, "Filter by concept status. Only use when terminology is ncit."] = None,
-        property: Annotated[NCITProperty | NCIMProperty | None, "Property enum to restrict search results by. Only use NCITProperty values when terminology is 'ncit' and NCIMProperty values when terminology is 'ncim'."] = None,
+        property: Annotated[
+            NCITProperty | NCIMProperty | None, 
+            "Property enum to restrict search results by. Use the ncit-property-information or ncim-property-information skills to find available property codes for each terminology."
+        ] = None,
         value: Annotated[str, "A property value to restrict search results by."] = None,
         definitionSource: Annotated[NCITDefinitionSource | NCIMDefinitionSource | None, "Definition source enum to restrict search results by. Can be NCITDefinitionSource (for ncit) or NCIMDefinitionSource (for ncim)."] = None,
         definitionType: Annotated[
@@ -69,14 +72,12 @@ def register(mcp: FastMCP) -> None:
         Provides flexible search capabilities ranging from simple term searches to
         complex queries with filters, sorting, and paging.
         
-        Property Reference:
-            For detailed information about available property codes and their usage, refer to:
-            - skill://ncit-property-information/SKILL.md (for terminology='ncit')
-            - skill://ncim-property-information/SKILL.md (for terminology='ncim')
-            
-            These skills provide comprehensive documentation of all property codes, organized by
-            category (e.g., Gene and Molecular Biology, Chemical and Drug Information, Clinical
-            Coding, etc.) with descriptions and usage examples.
+        **Recommended Workflow:**
+            1. **For property-based filtering**: First consult the property reference skills:
+            - For ncit: Use ncit-property-information 
+            - For ncim: Use ncim-property-information
+            2. Look up the property code
+            3. Use the property code with this search function
         
         Arg Notes:
             property and value: These parameters work together to filter search results based on specific property values.
