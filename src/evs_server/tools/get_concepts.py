@@ -26,6 +26,12 @@ def register(mcp: FastMCP) -> None:
         
         Retrieves detailed information about one or more concepts from the NCI EVS API.
         
+        Property Reference:
+            When include='properties' or include='full', the response will contain property information
+            for each concept. To understand what properties are available and their meanings, refer to:
+            - skill://ncit-property-information/SKILL.md (for terminology='ncit')
+            - skill://ncim-property-information/SKILL.md (for terminology='ncim')
+        
         Args:
             terminology: Terminology to search in (e.g., 'ncit' or 'ncim').
             list: Comma-separated list of concept codes to retrieve.
@@ -40,6 +46,8 @@ def register(mcp: FastMCP) -> None:
         
         Returns:
             List of concept objects with details based on the include parameter.
+            When include='properties', each concept will contain a 'properties' array with
+            property code, value, and type information.
         
         Raises:
             httpx.HTTPStatusError: If the API request fails.

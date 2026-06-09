@@ -69,12 +69,22 @@ def register(mcp: FastMCP) -> None:
         Provides flexible search capabilities ranging from simple term searches to
         complex queries with filters, sorting, and paging.
         
+        Property Reference:
+            For detailed information about available property codes and their usage, refer to:
+            - skill://ncit-property-information/SKILL.md (for terminology='ncit')
+            - skill://ncim-property-information/SKILL.md (for terminology='ncim')
+            
+            These skills provide comprehensive documentation of all property codes, organized by
+            category (e.g., Gene and Molecular Biology, Chemical and Drug Information, Clinical
+            Coding, etc.) with descriptions and usage examples.
+        
         Arg Notes:
             property and value: These parameters work together to filter search results based on specific property values.
                      - 'property' specifies which property or properties to filter by (e.g., Semantic_Type, Display_Name, etc.).
                      - 'value' specifies the exact value that the property should match (e.g., 'Disease', 'Melanoma', etc.).
                      - When both are used together, the search will return concepts that have the specified property with an exact value match.
                      - Using 'term' in combination with 'property' and 'value' will further restrict results to those that also match the search term.
+                     - To find the right property code to use, consult the property information skills listed above.
         
         Returns:
             Dictionary containing search results with the following structure:
