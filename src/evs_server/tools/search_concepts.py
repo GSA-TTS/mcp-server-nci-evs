@@ -1,6 +1,7 @@
 """Search concepts tool for NCI EVS API."""
 
-from typing import Any
+from typing import Any, Annotated, Literal 
+from pydantic import Field 
 
 import httpx
 from fastmcp import FastMCP
@@ -19,7 +20,7 @@ from ..models import (
     SearchType,
     Terminology,
 )
-from ..utils import to_url_value
+from ..utils import to_enum_list_value, to_url_value, validate_enum_for_terminology
 
 
 def register(mcp: FastMCP) -> None:
@@ -33,102 +34,47 @@ def register(mcp: FastMCP) -> None:
         }
     )
     async def search_concepts(
-        term: str,
-        terminology: Terminology = Terminology.NCIT,
-        type: SearchType = SearchType.CONTAINS,
-        include: Include = Include.MINIMAL,
-        conceptStatus: ConceptStatus | None = None,
-        property: str | None = None,
-        value: str | None = None,
-        definitionSource: str | None = None,
-        definitionType: str | None = None,
-        synonymSource: str | None = None,
-        synonymType: str | None = None,
-        synonymTermType: str | None = None,
-        subset: str | None = None,
-        sort: str | None = None,
-        ascending: bool = True,
-        fromRecord: int = 0,
-        pageSize: int = 10,
+        term: Annotated[str, "The term, phrase, or code to search for (e.g., 'melanoma')."],
+        terminology: Annotated[Terminology, "The terminology to search within. Can be a single value or comma-separated list (e.g., 'ncit' or 'ncit,ncim'). Default: 'ncit'"] = Terminology.NCIT,
+        type: Annotated[SearchType, "The match type for the search."] = SearchType.CONTAINS,
+        include: Annotated[Include, "The level of detail to return."] = Include.MINIMAL,
+        conceptStatus: Annotated[ConceptStatus, "Filter by concept status. Only use when terminology is ncit."] = None,
+        property: Annotated[NCITProperty | NCIMProperty | None, "Property enum to restrict search results by. Only use NCITProperty values when terminology is 'ncit' and NCIMProperty values when terminology is 'ncim'."] = None,
+        value: Annotated[str, "A property value to restrict search results by."] = None,
+        definitionSource: Annotated[NCITDefinitionSource | NCIMDefinitionSource | None, "Definition source enum to restrict search results by. Can be NCITDefinitionSource (for ncit) or NCIMDefinitionSource (for ncim)."] = None,
+        definitionType: Annotated[
+            Literal["DEFINITION", "ALT_DEFINITION"] | None,
+            "Definition types to restrict search results by. Only use when terminology is ncit",
+        ] = None,
+        synonymSource: Annotated[
+            NCITSynonymSource | NCIMSynonymSource | None,
+            "Single synonym source enum to restrict results by. Use NCITSynonymSource values when terminology is 'ncit' and NCIMSynonymSource values when terminology is 'ncim'."
+        ] = None,
+        synonymType: Annotated[
+            Literal["FULL_SYN", "Display_Name", "Preferred_Name"] | None,
+            "Comma-separated list of synonym types to restrict results by. Only use when terminology is 'ncit'."
+        ] = None,
+        synonymTermType: Annotated[
+            NCITSynonymTermType | NCIMSynonymTermType | None,
+            "Synonym term type to restrict results by. Use NCITSynonymTermType values when terminology is 'ncit' and NCIMSynonymTermType values when terminology is 'ncim'."
+        ] = None, 
+        subset: Annotated[str | None, "Comma-separated list of subsets to restrict search results by, e.g. 'C157225'. The value '*' can also be used to return results that participate in at least one subset. This parameter is only meaningful for terminology=ncit"] = None,
+        sort: Annotated[str | None, "The search parameter to sort results by. Optional."] = None,
+        ascending: Annotated[bool, "Sort ascending (if True) or descending (if False). Default: True"] = True,
+        fromRecord: Annotated[int, "Start index of the search results (for pagination). Default: 0"] = 0,
+        pageSize: Annotated[int, "Maximum number of results to return. Default: 10"] = 10,
     ) -> dict[str, Any]:
         """Search for concepts in the NCI EVS API.
         
         Provides flexible search capabilities ranging from simple term searches to
         complex queries with filters, sorting, and paging.
         
-        Args:
-            term: The term, phrase, or code to search for (e.g., 'melanoma').
-            terminology: Comma-separated list of terminologies to search
-                        (e.g., 'ncit' or 'ncim'). Default: 'ncit'
-            type: The match type for the search. Options:
-                  - contains: Search for terms containing the query string
-                  - match: Exact match search
-                  - startsWith: Search for terms starting with the query string
-                  - phrase: Phrase search - matches the exact phrase
-                  - AND: Boolean AND search - all terms must be present
-                  - OR: Boolean OR search - any term must be present
-                  - fuzzy: Fuzzy search - matches similar terms
-                  Default: 'contains'
-            include: Level of detail to return. Can be a single value or comma-separated list.
-                     Options: minimal, summary, full, associations, children, definitions,
-                     disjointWith, history, inverseAssociations, inverseRoles, maps,
-                     parents, properties, roles, synonyms.
-                     Default: 'minimal'
-            conceptStatus: Filter by concept status. Optional.
-                          Options: Header_Concept, Retired_Concept, Obsolete_Concept,
-                          Provisional_Concept, Concept_Pending_Approval.
-                          NOTE: This parameter can ONLY be used when terminology is set to 'ncit'.
-            property: Comma-separated list of property codes to restrict search results by.
-                     Can be specified as code or name. Optional.
-                     Examples:
-                     - For ncit: 'P106,P322' or 'Semantic_Type,Contributing_Source'
-                     - For ncim: 'COLOR,SHAPE' or property names
-                     NOTE: NCITProperty codes can ONLY be used with terminology='ncit'.
-                     NOTE: NCIMProperty codes can ONLY be used with terminology='ncim'.
-                     This works with the 'value' parameter to find concepts with specific
-                     property values. Using 'term' will further restrict results.
-            value: A property value to restrict search results by. Optional.
-                  NOTE: This parameter works with 'property' to find concepts having one of
-                  the specified properties with an exact value matching this parameter.
-                  Using 'term' will further restrict results to those also matching the term.
-                  Example: property='P322', value='CDISC' finds concepts with Contributing_Source='CDISC'
-            definitionSource: Comma-separated list of definition sources to restrict results by. Optional.
-                             Can be specified using source codes.
-                             Examples:
-                             - For ncit: 'NCI,CDISC' or NCITDefinitionSource.NCI
-                             - For ncim: 'NCI,MSH' or NCIMDefinitionSource.NCI
-                             NOTE: NCITDefinitionSource values can ONLY be used with terminology='ncit'.
-                             NOTE: NCIMDefinitionSource values can ONLY be used with terminology='ncim'.
-            definitionType: Comma-separated list of definition types to restrict results by. Optional.
-                           Examples:
-                           - For ncit: 'DEFINITION,ALT_DEFINITION'
-                           Common types: DEFINITION, ALT_DEFINITION
-            synonymSource: Comma-separated list of synonym sources to restrict results by. Optional.
-                          Examples:
-                          - For ncit: 'NCI,CDISC,FDA' or NCITSynonymSource values
-                          - For ncim: 'NCI,MSH,SNOMEDCT_US' or NCIMSynonymSource values
-                          NOTE: NCITSynonymSource values can ONLY be used with terminology='ncit'.
-                          NOTE: NCIMSynonymSource values can ONLY be used with terminology='ncim'.
-            synonymType: Comma-separated list of synonym types to restrict results by. Optional.
-                        Examples:
-                        - For ncit: 'FULL_SYN', 'Display_Name', 'Preferred_Name', or 'P90,P107,P108'
-                        NOTE: This parameter is ONLY meaningful for terminology='ncit'.
-                        Available types: P90 (FULL_SYN), P107 (Display_Name), P108 (Preferred_Name)
-            synonymTermType: Comma-separated list of synonym term types to restrict results by. Optional.
-                            Examples:
-                            - For ncit: 'PT,SY,AB' or NCITSynonymTermType values
-                            - For ncim: 'PT,SY,AB' or NCIMSynonymTermType values
-                            NOTE: NCITSynonymTermType values can ONLY be used with terminology='ncit'.
-                            NOTE: NCIMSynonymTermType values can ONLY be used with terminology='ncim'.
-                            This allows filtering by specific term types like Preferred Term (PT), Synonym (SY), etc.
-            subset: Comma-separated list of subset codes to restrict search results by. Optional.
-                   Examples: 'C157225' or 'C157225,C157226'
-                   Special value: '*' returns results that participate in at least one subset.
-                   NOTE: This parameter is ONLY meaningful for terminology='ncit'.
-            sort: The search parameter to sort results by. Optional.
-            ascending: Sort ascending (if True) or descending (if False). Default: True
-            fromRecord: Start index of the search results (for pagination). Default: 0
-            pageSize: Maximum number of results to return. Default: 10
+        Arg Notes:
+            property and value: These parameters work together to filter search results based on specific property values.
+                     - 'property' specifies which property or properties to filter by (e.g., Semantic_Type, Display_Name, etc.).
+                     - 'value' specifies the exact value that the property should match (e.g., 'Disease', 'Melanoma', etc.).
+                     - When both are used together, the search will return concepts that have the specified property with an exact value match.
+                     - Using 'term' in combination with 'property' and 'value' will further restrict results to those that also match the search term.
         
         Returns:
             Dictionary containing search results with the following structure:
@@ -155,9 +101,12 @@ def register(mcp: FastMCP) -> None:
         base_url = "https://api-evsrest.nci.nih.gov/api/v1"
         url = f"{base_url}/concept/search"
         
+        # Get terminology value for validation
+        terminology_value = to_url_value(terminology)
+        
         params = {
             "term": term,
-            "terminology": to_url_value(terminology),
+            "terminology": terminology_value,
             "type": to_url_value(type),
             "include": to_url_value(include),
             "ascending": str(ascending).lower(),
@@ -170,29 +119,78 @@ def register(mcp: FastMCP) -> None:
             params["conceptStatus"] = to_url_value(conceptStatus)
         
         if property is not None:
-            # Handle both enum values and strings for property parameter
-            params["property"] = to_url_value(property) if hasattr(property, 'value') else property
+            # Validate terminology-specific enum usage
+            validate_enum_for_terminology(
+                property,
+                terminology_value,
+                NCITProperty,
+                NCIMProperty,
+                "property"
+            )
+            # Convert enum or list of enums to comma-separated string
+            # Determine which enum class to use based on the actual type
+            if isinstance(property, list):
+                enum_class = property[0].__class__ if property else NCITProperty
+            else:
+                enum_class = property.__class__
+            params["property"] = to_enum_list_value(property, enum_class, "property")
         
         if value is not None:
             params["value"] = value
         
         if definitionSource is not None:
-            # Handle both enum values and strings for definitionSource parameter
-            params["definitionSource"] = to_url_value(definitionSource) if hasattr(definitionSource, 'value') else definitionSource
+            # Validate terminology-specific enum usage
+            validate_enum_for_terminology(
+                definitionSource,
+                terminology_value,
+                NCITDefinitionSource,
+                NCIMDefinitionSource,
+                "definitionSource"
+            )
+            # Convert enum or list of enums to comma-separated string
+            if isinstance(definitionSource, list):
+                enum_class = definitionSource[0].__class__ if definitionSource else NCITDefinitionSource
+            else:
+                enum_class = definitionSource.__class__
+            params["definitionSource"] = to_enum_list_value(definitionSource, enum_class, "definitionSource")
         
         if definitionType is not None:
             params["definitionType"] = definitionType
         
         if synonymSource is not None:
-            # Handle both enum values and strings for synonymSource parameter
-            params["synonymSource"] = to_url_value(synonymSource) if hasattr(synonymSource, 'value') else synonymSource
+            # Validate terminology-specific enum usage
+            validate_enum_for_terminology(
+                synonymSource,
+                terminology_value,
+                NCITSynonymSource,
+                NCIMSynonymSource,
+                "synonymSource"
+            )
+            # Convert enum or list of enums to comma-separated string
+            if isinstance(synonymSource, list):
+                enum_class = synonymSource[0].__class__ if synonymSource else NCITSynonymSource
+            else:
+                enum_class = synonymSource.__class__
+            params["synonymSource"] = to_enum_list_value(synonymSource, enum_class, "synonymSource")
         
         if synonymType is not None:
             params["synonymType"] = synonymType
         
         if synonymTermType is not None:
-            # Handle both enum values and strings for synonymTermType parameter
-            params["synonymTermType"] = to_url_value(synonymTermType) if hasattr(synonymTermType, 'value') else synonymTermType
+            # Validate terminology-specific enum usage
+            validate_enum_for_terminology(
+                synonymTermType,
+                terminology_value,
+                NCITSynonymTermType,
+                NCIMSynonymTermType,
+                "synonymTermType"
+            )
+            # Convert enum or list of enums to comma-separated string
+            if isinstance(synonymTermType, list):
+                enum_class = synonymTermType[0].__class__ if synonymTermType else NCITSynonymTermType
+            else:
+                enum_class = synonymTermType.__class__
+            params["synonymTermType"] = to_enum_list_value(synonymTermType, enum_class, "synonymTermType")
         
         if subset is not None:
             params["subset"] = subset
