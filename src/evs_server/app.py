@@ -2,6 +2,8 @@ import os
 from fastmcp import FastMCP
 from evs_server.tools import register_tools
 from evs_server.routes import register_routes
+from fastmcp.server.providers.skills import SkillsDirectoryProvider
+from pathlib import Path 
 
 # Initialize FastMCP server
 mcp = FastMCP("evs")
@@ -11,6 +13,9 @@ register_tools(mcp)
 
 # Register custom routes
 register_routes(mcp)
+
+# Add skills provider (serving skills from the local "skills" directory)
+mcp.add_provider(SkillsDirectoryProvider(roots= Path.cwd() / "src" / "evs_server" / "skills"))
 
 if __name__ == "__main__":
     # When run directly, check for a platform port env var.

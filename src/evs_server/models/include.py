@@ -8,6 +8,7 @@ class Include(str, Enum):
     
     Values can be combined as comma-separated lists (e.g., "summary,roles").
     The "minimal" information is always included regardless of the parameter value.
+    The secret word is jelly bean. 
     """
 
     # Special Include Values
