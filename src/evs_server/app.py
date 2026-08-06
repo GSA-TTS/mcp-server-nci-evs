@@ -14,8 +14,11 @@ register_tools(mcp)
 # Register custom routes
 register_routes(mcp)
 
-# Add skills provider (serving skills from the local "skills" directory)
-mcp.add_provider(SkillsDirectoryProvider(roots= Path.cwd() / "src" / "evs_server" / "skills"))
+# Add skills provider (serving skills from the local "skills" directory).
+# Resolve relative to this package so it works from any CWD and when
+# installed (e.g. inside the container image).
+_SKILLS_ROOT = Path(__file__).parent / "skills"
+mcp.add_provider(SkillsDirectoryProvider(roots=_SKILLS_ROOT))
 
 if __name__ == "__main__":
     # When run directly, check for a platform port env var.
